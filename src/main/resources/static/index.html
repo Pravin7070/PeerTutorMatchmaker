@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer Tutor Matchmaker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .module {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        h1, h2 {
+            color: #005a9c;
+            font-weight: 700;
+        }
+        h1 { text-align: center; margin-bottom: 25px; }
+        form { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        form input, form select, form textarea {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        form input:focus, form select:focus, form textarea:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        form button {
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        form button:hover { background-color: #0056b3; }
+        form button:active { transform: translateY(1px); }
+
+        #tutorResults { margin-top: 20px; }
+        .tutor-card {
+            padding: 20px;
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tutor-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: #f1f7fe;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        
+        /* Schedule View */
+        .schedule-slot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .schedule-slot button {
+            background-color: #28a745;
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        .schedule-slot button:hover {
+            background-color: #1e7e34;
+        }
+
+        /* Modal */
+        #custom-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 id="main-title">Peer Tutor Matchmaker</h1>
+        
+        <div id="statusMessage" class="status" style="display:none;"></div>
+
+        <div id="authView">
+            <div class="module">
+                <h2>Register</h2>
+                <form id="registerForm">
+                    <input type="text" id="reg-username" placeholder="Username" required>
+                    <input type="password" id="reg-password" placeholder="Password" required>
+                    <input type="email" id="reg-email" placeholder="Email" required>
+                    <input type="text" id="reg-firstName" placeholder="First Name">
+                    <input type="text" id="reg-lastName" placeholder="Last Name">
+                    <textarea id="reg-bio" placeholder="Tell us about yourself (Bio - optional)" rows="3"></textarea>
+                    <select id="reg-role" required>
+                        <option value="" disabled selected>Select your role...</option>
+                        <option value="ROLE_STUDENT">Student</option>
+                        <option value="ROLE_TUTOR">Tutor</option>
+                    </select>
+                    <button type="submit">Register</button>
+                </form>
+            </div>
+
+            <div class="module">
+                <h2>Login</h2>
+                <form id="loginForm">
+                    <input type="text" id="login-username" placeholder="Username" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="appView" style="display:none;">
+            <div class="flex justify-between items-center mb-5 border-b pb-3">
+                <span id="userGreeting" class="text-gray-600 font-semibold"></span>
+                <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg text-sm transition">Logout</button>
+            </div>
+
+            <div id="mainContent">
+                </div>
+        </div>
+    </div>
+
+    <div id="custom-modal" style="display:none;">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-xl font-bold mb-3"></h3>
+            <p id="modal-message" class="text-gray-700 mb-4"></p>
+            <button onclick="closeModal()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Base URL for your Spring Boot API
+        const API_BASE_URL = 'http://localhost:8080/api';
+
+        // State variables
+        let basicAuthHeader = null;
+        let currentUser = null;
+        let currentView = 'list'; // 'list' or 'schedule'
+        let selectedTutor = null;
+
+        // Get elements
+        const authView = document.getElementById('authView');
+        const appView = document.getElementById('appView');
+        const userGreeting = document.getElementById('userGreeting');
+        const registerForm = document.getElementById('registerForm');
+        const loginForm = document.getElementById('loginForm');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const mainContent = document.getElementById('mainContent');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // --- View Management ---
+
+        function formatRole(role) {
+            if (!role || role === 'UNKNOWN') return 'Guest';
+            // Removes 'ROLE_' prefix and capitalizes the rest (e.g., ROLE_TUTOR -> TUTOR)
+            return role.replace('ROLE_', '').toUpperCase();
+        }
+
+        function updateAppView() {
+            if (basicAuthHeader && currentUser) {
+                authView.style.display = 'none';
+                appView.style.display = 'block';
+                
+                // 🌟 FIX 1: Format the role for display
+                const displayRole = formatRole(currentUser.role);
+                userGreeting.textContent = `Welcome, ${currentUser.username} (${displayRole})!`;
+                
+                // Render the default view after login
+                if (currentView === 'list') {
+                    renderTutorList();
+                } else if (currentView === 'schedule' && selectedTutor) {
+                    renderTutorSchedule(selectedTutor.id);
+                }
+            } else {
+                authView.style.display = 'block';
+                appView.style.display = 'none';
+                mainContent.innerHTML = '';
+            }
+        }
+
+        function changeView(view, tutorId = null) {
+            currentView = view;
+            if (view === 'list') {
+                renderTutorList();
+            } else if (view === 'schedule' && tutorId !== null) {
+                renderTutorSchedule(tutorId);
+            }
+        }
+
+        // --- API Call Helpers ---
+
+        async function makeApiCall(url, options = {}) {
+            options.headers = options.headers || {};
+            
+            // Apply Authorization header if logged in
+            if (basicAuthHeader) {
+                options.headers['Authorization'] = basicAuthHeader;
+            }
+
+            // Always use JSON content type for POST/PUT/PATCH unless specified otherwise
+            if (options.method && options.method !== 'GET' && options.method !== 'HEAD') {
+                options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
+            }
+
+            try {
+                const response = await fetch(url, options);
+
+                if (response.status === 401) {
+                    handleLogout();
+                    showStatus('Session expired or unauthorized. Please log in again.', 'error');
+                    return null;
+                }
+
+                if (!response.ok) {
+                    // Try to read and parse the error response
+                    const errorText = await response.text();
+                    let errorMessage = `${response.status} ${response.statusText}`;
+
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        // Assuming Spring Boot returns a standard error format
+                        if (errorJson.message) {
+                            errorMessage = errorJson.message;
+                        } else if (errorJson.error) {
+                             errorMessage = errorJson.error;
+                        } else {
+                            errorMessage = errorText; // Use the raw text if JSON is unexpected
+                        }
+                    } catch (e) {
+                        // If parsing as JSON fails, use the raw response text
+                        errorMessage = errorText || errorMessage;
+                    }
+                    // Throw an error that will be caught by the calling function (e.g., registerForm.addEventListener)
+                    throw new Error(errorMessage);
+                }
+
+                // Attempt to parse JSON, fall back to text if response is empty or not JSON
+                const text = await response.text();
+                try {
+                    return text ? JSON.parse(text) : {};
+                } catch (e) {
+                    return text; // Return plain text if not JSON (e.g., /auth/register success)
+                }
+
+            } catch (err) {
+                // This catches fundamental network errors (server down, CORS, etc.)
+                console.error("API Call Error:", err.message);
+                throw new Error(err.message === 'Failed to fetch' ? 'Network error. Is the server running?' : err.message);
+            }
+        }
+
+
+        // --- 1. Register Logic ---
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                username: document.getElementById('reg-username').value,
+                password: document.getElementById('reg-password').value,
+                email: document.getElementById('reg-email').value,
+                firstName: document.getElementById('reg-firstName').value,
+                lastName: document.getElementById('reg-lastName').value,
+                // Pass the new bio field data
+                bio: document.getElementById('reg-bio').value,
+                role: document.getElementById('reg-role').value
+            };
+
+            try {
+                const result = await makeApiCall(`${API_BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                    headers: { 'Content-Type': 'application/json' } // Explicitly set content type
+                });
+                
+                showModal('Registration Success', result || 'User registered successfully!', 'success');
+                registerForm.reset();
+            } catch (err) {
+                // The error message from makeApiCall is now more descriptive
+                showModal('Registration Failed', err.message, 'error');
+            }
+        });
+
+        // --- 2. Login Logic ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+
+            // 1. Create and store Basic Auth header
+            basicAuthHeader = 'Basic ' + btoa(username + ':' + password);
+            
+            // 2. Test the login and fetch user details
+            try {
+                // The /me endpoint returns the authenticated user object 
+                const user = await makeApiCall(`${API_BASE_URL}/auth/me`, { method: 'GET' });
+
+                if (user && typeof user === 'object' && user.username) {
+                    // 🌟 FIX 2: Ensure the role is correctly pulled, defaulting to 'UNKNOWN' if missing
+                    const userRole = user.role || 'ROLE_UNKNOWN';
+                    
+                    currentUser = {
+                        id: user.id ? Number(user.id) : null,
+                        username: user.username,
+                        email: user.email,
+                        role: userRole 
+                    }; 
+
+                } else if (typeof user === 'string') {
+                    // Fallback for unexpected string response
+                    currentUser = { username: username, role: 'ROLE_UNKNOWN' }; 
+                } else {
+                    throw new Error('Login failed. Check username/password.');
+                }
+                
+                showModal('Login Successful', `Logged in as ${currentUser.username}.`, 'success');
+                loginForm.reset();
+                updateAppView();
+
+            } catch (err) {
+                basicAuthHeader = null; // Clear auth on failure
+                currentUser = null;
+                showModal('Login Failed', err.message, 'error');
+                updateAppView();
+            }
+        });
+
+        // --- Logout Logic ---
+        logoutBtn.addEventListener('click', handleLogout);
+
+        function handleLogout() {
+            basicAuthHeader = null;
+            currentUser = null;
+            selectedTutor = null;
+            currentView = 'list';
+            updateAppView();
+            showStatus('You have been logged out.', 'success');
+        }
+
+        // --- 3. Find Tutors Logic ---
+        async function fetchTutors() {
+            try {
+                const tutors = await makeApiCall(`${API_BASE_URL}/match/tutors`, { method: 'GET' });
+                return tutors;
+            } catch (err) {
+                showModal('Error Fetching Tutors', err.message, 'error');
+                return [];
+            }
+        }
+
+        function renderTutorList() {
+            mainContent.innerHTML = `
+                <h2 class="text-2xl font-bold mb-4">Available Tutors</h2>
+                <button id="refreshTutorsBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg mb-6 shadow-md transition duration-150 ease-in-out">
+                    Find All Tutors
+                </button>
+                <div id="tutorResults">Loading tutors...</div>
+            `;
+            document.getElementById('refreshTutorsBtn').addEventListener('click', fetchAndRenderTutors);
+            fetchAndRenderTutors();
+        }
+
+        async function fetchAndRenderTutors() {
+            const tutorResultsDiv = document.getElementById('tutorResults');
+            tutorResultsDiv.innerHTML = '<div class="text-center py-4 text-gray-500">Loading...</div>';
+
+            const tutors = await fetchTutors();
+            
+            tutorResultsDiv.innerHTML = '';
+            if (tutors.length === 0) {
+                tutorResultsDiv.innerHTML = '<div class="text-center py-4 text-gray-500">No tutors found.</div>';
+                return;
+            }
+
+            tutors.forEach(tutor => {
+                const card = document.createElement('div');
+                card.className = 'tutor-card';
+                card.setAttribute('data-tutor-id', tutor.id);
+                card.onclick = () => changeView('schedule', tutor.id); // Add click handler
+                
+                card.innerHTML = `
+                    <h3 class="text-xl font-bold text-indigo-700">${tutor.firstName} ${tutor.lastName}</h3>
+                    <p class="text-sm text-gray-600"><strong>Username:</strong> ${tutor.username}</p>
+                    <p class="text-sm text-gray-600"><strong>Email:</strong> ${tutor.email}</p>
+                    <p class="text-sm text-gray-600 mt-2"><strong>Bio:</strong> ${tutor.bio || 'No bio provided.'}</p>
+                    <div class="mt-3 inline-block text-xs font-semibold text-white bg-indigo-500 px-3 py-1 rounded-full">
+                        View Schedule
+                    </div>
+                `;
+                tutorResultsDiv.appendChild(card);
+            });
+        }
+
+        // --- 4. Tutor Schedule and Booking Logic ---
+
+        async function fetchTutorAvailability(tutorId) {
+            // Note: Assuming your API has a path like /match/tutors/{id}/availability
+            try {
+                const availability = await makeApiCall(`${API_BASE_URL}/match/tutors/${tutorId}/availability`, { method: 'GET' });
+                return availability;
+            } catch (err) {
+                showModal('Error Fetching Schedule', err.message, 'error');
+                return [];
+            }
+        }
+
+        async function renderTutorSchedule(tutorId) {
+            // Re-fetch tutor details if needed (for simplicity, we assume we have the tutor details from the list fetch)
+            const allTutors = await fetchTutors();
+            selectedTutor = allTutors.find(t => t.id === tutorId) || { id: tutorId, firstName: 'Unknown', lastName: 'Tutor', bio: 'Loading...' };
+
+            mainContent.innerHTML = `
+                <button onclick="changeView('list')"
+                        class="mb-6 flex items-center text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    Back to Tutor List
+                </button>
+                <div class="bg-white p-6 rounded-xl mb-6 border border-gray-200 shadow-md">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">${selectedTutor.firstName} ${selectedTutor.lastName}</h2>
+                    <p class="text-gray-600 mb-4">${selectedTutor.bio || 'No bio provided.'}</p>
+                </div>
+                
+                <h3 class="text-xl font-semibold text-gray-800 mb-3 border-b pb-2">Availability</h3>
+                <div id="availability-slots">Loading schedule...</div>
+            `;
+            
+            const availability = await fetchTutorAvailability(tutorId);
+            const slotsDiv = document.getElementById('availability-slots');
+            slotsDiv.innerHTML = ''; // Clear loading message
+
+            if (availability.length === 0) {
+                slotsDiv.innerHTML = '<p class="text-center text-gray-500 mt-8">This tutor has no available slots.</p>';
+            } else {
+                availability.forEach(slot => {
+                    // Assuming slot object has 'id', 'dayOfWeek', 'startTime', 'endTime'
+                    const slotElement = document.createElement('div');
+                    slotElement.className = 'schedule-slot';
+                    slotElement.innerHTML = `
+                        <div class="flex-grow">
+                            <p class="text-lg font-semibold text-gray-700">${slot.dayOfWeek}</p>
+                            <p class="text-sm text-gray-500">${slot.startTime} - ${slot.endTime}</p>
+                        </div>
+                        <button onclick="bookSlot(${slot.id}, '${slot.dayOfWeek}')">
+                            Book Now
+                        </button>
+                    `;
+                    slotsDiv.appendChild(slotElement);
+                });
+            }
+        }
+
+        async function bookSlot(availabilityId, day) {
+            // Note: Assuming your API has a path like /match/book and accepts availabilityId
+            try {
+                const bookingData = {
+                    availabilityId: availabilityId,
+                    studentId: currentUser.id // Assuming 'id' is available in currentUser object after login
+                };
+
+                const result = await makeApiCall(`${API_BASE_URL}/match/book`, {
+                    method: 'POST',
+                    body: JSON.stringify(bookingData)
+                });
+                
+                showModal('Booking Success', `Successfully booked a session with ${selectedTutor.firstName} on ${day}.`, 'success');
+                // Refresh schedule to remove the booked slot (in a real app)
+                renderTutorSchedule(selectedTutor.id); 
+
+            } catch (err) {
+                showModal('Booking Failed', err.message, 'error');
+            }
+        }
+
+
+        // --- Utility Functions (Modal/Status) ---
+
+        function showModal(title, message, type) {
+            const modal = document.getElementById('custom-modal');
+            const titleEl = document.getElementById('modal-title');
+            const messageEl = document.getElementById('modal-message');
+            
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+
+            // Optional: style modal based on type (success/error)
+            titleEl.className = `text-xl font-bold mb-3 ${type === 'success' ? 'text-green-600' : 'text-red-600'}`;
+
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('custom-modal').style.display = 'none';
+        }
+
+        function showStatus(message, type) {
+            // Note: This function remains for simple, transient status messages
+            statusMessage.textContent = message;
+            statusMessage.className = `status ${type}`;
+            statusMessage.style.display = 'block';
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        // --- Initialization ---
+        window.onload = () => {
+            updateAppView();
+        };
+
+    </script>
+</body>
+</html>
